@@ -1,0 +1,23 @@
+- hosts: snort
+  become: yes
+  become_user: root
+  tasks:
+   - name: Clone repo
+     git:
+       repo: 'https://github.com/rmsidebottom/SnortSetup.git'
+       dest: /snortFiles/
+   - name: Load medium rules
+     copy:
+       src: /snortFiles/b.rules
+       dest: /etc/snort/rules/active.rules
+       owner: snort
+       group: snort
+       remote_src: yes
+     notify:
+      - Reload snort
+
+ handlers:
+   - name: Reload snort
+     service:
+       name: snort
+       state: restarted

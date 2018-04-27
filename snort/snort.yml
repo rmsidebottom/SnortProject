@@ -1,0 +1,59 @@
+- hosts: snort
+  become: yes
+  become_user: root
+  tasks:
+   - name: Install Snort dependencies
+     apt:
+       name: "{{ item }}"
+       state: present
+       update_cache: true
+     with_items:
+       - 'gcc'
+       - 'libpcre3-dev'
+       - 'zlib1g-dev'
+       - 'libpcap-dev'
+       - 'openssl'
+       - 'libssl-dev'
+       - 'libnghttp2-dev'
+       - 'libdumbnet-dev'
+       - 'bison'
+       - 'flex'
+       - 'libdnet'
+       - 'snort'
+
+   - name: Git Clone snort rules
+     git:
+       repo: 'https://github.com/rmsidebottom/SnortSetup.git'
+       dest: /snortFiles/
+       clone: yes
+   - name: Move snort.conf to /etc/snort
+     copy:
+       src: /snortFiles/snort.conf
+       dest: /etc/snort/snort.conf
+       owner: snort
+       group: snort
+       remote_src: yes
+   - name: Move a.rules into snort/rules
+     copy:
+       src: /snortFiles/a.rules
+       dest: /etc/snort/rules/active.rules
+       owner: snort
+       group: snort
+       remote_src: yes
+   - name: setup snort.service
+     copy:
+       src: /snortFiles/snort.service
+       dest: /lib/systemd/system/snort.service
+       owner: snort
+       group: snort
+     notify:
+      - Reload systemctl
+
+  handlers:
+   - name: Reload systemctl
+     command: systemctl daemon-reload
+
+   - name: Start snort
+     service: 
+       name: snort
+       state: started
