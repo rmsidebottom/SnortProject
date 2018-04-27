@@ -42,7 +42,7 @@
        remote_src: yes
    - name: setup snort.service
      copy:
-       src: /snortFiles/snort.service
+       src: snort.service
        dest: /lib/systemd/system/snort.service
        owner: snort
        group: snort
