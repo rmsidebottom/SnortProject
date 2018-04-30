@@ -6,8 +6,9 @@
      apt:
        name: "{{ item }}"
        state: present
-       update_cache: true
+       update_cache: yes
      with_items:
+       - 'ebtables'
        - 'gcc'
        - 'libpcre3-dev'
        - 'zlib1g-dev'
@@ -19,14 +20,130 @@
        - 'bison'
        - 'flex'
        - 'libdnet'
-       - 'snort'
+       - 'git'
+   - name: flush ebtables
+     command: ebtables -F
+   - name: setup ebtables, in
+     command: ebtables -A FORWARD -d BGA -i vif+ -j DROP
+   - name: setup ebtables, out
+     command: ebtables -A FORWARD -d BGA -o vif+ -j DROP
+
+   - name: Get DAQ
+     get_url:
+       url: https://www.snort.org/downloads/snort/daq-2.0.6.tar.gz 
+       dest: /daq.tar.gz
+   - name: unzip daq
+     unarchive:
+       src: /daq.tar.gz
+       dest: /
+       creates:
+       remote_src: yes
+   - name: install daq
+     command: chdir="/daq-2.0.6" {{ item }}
+     with_items:
+       - ./configure
+       - make
+       - make install
+   - name: Get snort
+     get_url:
+       url: https://www.snort.org/downloads/snort/snort-2.9.11.1.tar.gz
+       dest: /snort.tar.gz
+   - name: unzip snort
+     unarchive:
+       src: /snort.tar.gz
+       dest: /
+       remote_src: yes
+   - name: install snort
+     command: chdir="/snort-2.9.11.1" {{ item }}
+     with_items:
+       - ./configure --enable-sourcefire
+       - make
+       - make install
+   - name: create symbolic link
+     file:
+       src: /usr/local/bin/snort
+       dest: /usr/sbin/snort
+       state: link
+       force: no
+
+   - name: Add snort group
+     group:
+       name: snort
+       state: present
+       system: no
+   - name: Add snort user
+     user:
+       name: snort
+       create_home: no
+       group: snort
+       shell: /sbin/nologin
+       state: present
+       system: no
+       
+   - name: change /etc/snort permissions
+     file:
+       path: /etc/snort/
+       owner: snort 
+       group: snort 
+       mode: 05775
+       state: directory
+   - name: change /etc/snort/rules permissions
+     file:
+       path: /etc/snort/rules
+       owner: snort 
+       group: snort 
+       mode: 05775
+       state: directory
+   - name: change /var/log/snort permissions
+     file:
+       path: /var/log/snort
+       owner: snort 
+       group: snort 
+       mode: 05775
+       state: directory
+   - name: make dynamicrules folder
+     file:
+       path: /usr/local/lib/snort_dynamicrules
+       owner: snort
+       group: snort
+       mode: 05775
+       state: directory
+   
+   - name: move default files
+     copy:
+       src: /snort-2.9.11.1/etc/{{ item }}
+       dest: /etc/snort/
+       remote_src: yes
+     with_items:
+       - "classification.config"
+       - "file_magic.conf"
+       - "gen-msg.map"
+       - "reference.config"
+       - "snort.conf"
+       - "threshold.conf"
+       - "unicode.map"
+   - name: create white/black list files
+     file:
+       path: /etc/snort/rules/{{ item }}
+       owner: snort
+       group: snort
+       state: touch
+     with_items:
+       - white_list.rules
+       - black_list.rules
+   - name: move interfaces to /etc/network
+     copy:
+       src: interfaces.sample
+       dest: /etc/network/interfaces
 
    - name: Git Clone snort rules
      git:
        repo: 'https://github.com/rmsidebottom/SnortSetup.git'
        dest: /snortFiles/
        clone: yes
-   - name: Move snort.conf to /etc/snort
+       force: no
+       update: no
+   - name: Move custom snort.conf to /etc/snort
      copy:
        src: /snortFiles/snort.conf
        dest: /etc/snort/snort.conf
@@ -40,6 +157,10 @@
        owner: snort
        group: snort
        remote_src: yes
+   - name: restart networking
+     service:
+       name: networking
+       state: restarted
    - name: setup snort.service
      copy:
        src: snort.service
@@ -52,6 +173,7 @@
   handlers:
    - name: Reload systemctl
      command: systemctl daemon-reload
+     notify: Start snort
 
    - name: Start snort
      service: 
