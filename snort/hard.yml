@@ -16,7 +16,7 @@
      notify:
       - Reload snort
 
- handlers:
+  handlers:
    - name: Reload snort
      service:
        name: snort
