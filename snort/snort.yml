@@ -59,6 +59,8 @@
        - ./configure --enable-sourcefire
        - make
        - make install
+   - name: update shared libraries
+     command: ldconfig
    - name: create symbolic link
      file:
        src: /usr/local/bin/snort
